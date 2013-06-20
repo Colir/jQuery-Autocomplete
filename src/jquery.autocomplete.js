@@ -77,7 +77,10 @@
                 paramName: 'query',
                 transformResult: function (response) {
                     return typeof response === 'string' ? $.parseJSON(response) : response;
-                }
+                },
+                categories: false,
+    			noResult : '',
+				focusShow : false
             };
 
         // Shared variables:
@@ -96,7 +99,8 @@
         that.options = $.extend({}, defaults, options);
         that.classes = {
             selected: 'autocomplete-selected',
-            suggestion: 'autocomplete-suggestion'
+            suggestion: 'autocomplete-suggestion',
+            group: 'autocomplete-group'
         };
         that.hint = null;
         that.hintValue = '';
@@ -133,8 +137,11 @@
 
             that.killerFn = function (e) {
                 if ($(e.target).closest('.' + that.options.containerClass).length === 0) {
-                    that.killSuggestions();
-                    that.disableKillerFn();
+					if(that.options.focusShow)  that.stopKillSuggestions();
+                    else {
+						that.killSuggestions();
+                    	that.disableKillerFn();
+					 }
                 }
             };
 
@@ -178,7 +185,7 @@
             that.el.on('keydown.autocomplete', function (e) { that.onKeyPress(e); });
             that.el.on('keyup.autocomplete', function (e) { that.onKeyUp(e); });
             that.el.on('blur.autocomplete', function () { that.onBlur(); });
-            that.el.on('focus.autocomplete', function () { that.fixPosition(); });
+            that.el.on('focus.autocomplete', function (e) { that.fixPosition(); if(that.options.focusShow) that.onValueChange() });
             that.el.on('change.autocomplete', function (e) { that.onKeyUp(e); });
         },
 
@@ -256,6 +263,8 @@
             var that = this;
             that.stopKillSuggestions();
             that.intervalId = window.setInterval(function () {
+								console.log('mrd')
+
                 that.hide();
                 that.stopKillSuggestions();
             }, 300);
@@ -454,6 +463,7 @@
         },
 
         hide: function () {
+			
             var that = this;
             that.visible = false;
             that.selectedIndex = -1;
@@ -462,24 +472,49 @@
         },
 
         suggest: function () {
-            if (this.suggestions.length === 0) {
-                this.hide();
-                return;
-            }
+            
 
             var that = this,
                 formatResult = that.options.formatResult,
                 value = that.getQuery(that.currentValue),
                 className = that.classes.suggestion,
                 classSelected = that.classes.selected,
+                classGroup = that.classes.group,
                 container = $(that.suggestionsContainer),
+                categories = that.options.categories,
                 html = '',
                 width;
-
+				
+				
+			if (this.suggestions.length === 0) {
+				if(that.options.noResult !='')  html += '<div class="'+ className +' no-results"><em>' + that.options.noResult + '</em></div>';
+				else {
+					this.hide();
+                	return;
+				}
+            }
+			
+			
+			
             // Build suggestions inner HTML:
-            $.each(that.suggestions, function (i, suggestion) {
-                html += '<div class="' + className + '" data-index="' + i + '">' + formatResult(suggestion, value) + '</div>';
-            });
+            if ( categories )
+            {
+                var actual_category = "";
+                $.each(that.suggestions, function (i, suggestion) {
+                    if ( suggestion.category != actual_category )
+                    {
+                        html += '<div class="' + classGroup + '" ><strong>' + suggestion.category + '</strong></div>';
+                        actual_category = suggestion.category;
+                    };
+                    html += '<div class="' + className + '" data-index="' + i + '">' + formatResult(suggestion, value) + '</div>';
+                });
+            }
+            else
+            {
+                $.each(that.suggestions, function (i, suggestion) {
+                    html += '<div class="' + className + '" data-index="' + i + '">' + formatResult(suggestion, value) + '</div>';
+                });
+            }
 
             // If width is auto, adjust width before displaying suggestions,
             // because if instance was created before input had width, it will be zero.
@@ -496,7 +531,7 @@
             // Select first value by default:
             if (that.options.autoSelectFirst) {
                 that.selectedIndex = 0;
-                container.children().first().addClass(classSelected);
+                container.children( '.' + that.classes.suggestion ).first().addClass(classSelected);
             }
 
             that.findBestHint();
@@ -568,9 +603,9 @@
             var that = this,
                 activeItem,
                 selected = that.classes.selected,
+                suggestion = that.classes.suggestion,
                 container = $(that.suggestionsContainer),
-                children = container.children();
-
+                children = container.children( '.' + suggestion );
             container.children('.' + selected).removeClass(selected);
 
             that.selectedIndex = index;
